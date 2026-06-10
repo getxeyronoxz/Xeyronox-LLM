@@ -357,24 +357,33 @@ def main():
             
         # SFT training iteration step
         model.train()
-        try:
-            bx, by = next(train_iter)
-        except StopIteration:
-            train_iter = iter(train_loader)
+        optimizer.zero_grad(set_to_none=True)
+        loss_accum = 0.0
+        grad_accum_steps = cfg.gradient_accumulation_steps
+        
+        for micro_step in range(grad_accum_steps):
             try:
                 bx, by = next(train_iter)
             except StopIteration:
-                if master_process:
-                    print("SFT Train dataset is empty!")
-                break
-                
-        bx = bx.to(device)
-        by = by.to(device)
-        
-        logits, loss = model(bx, by)
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        
+                train_iter = iter(train_loader)
+                try:
+                    bx, by = next(train_iter)
+                except StopIteration:
+                    break
+            bx = bx.to(device)
+            by = by.to(device)
+            
+            if ddp and micro_step < grad_accum_steps - 1:
+                with model.no_sync():
+                    logits, loss = model(bx, by)
+                    loss = loss / grad_accum_steps
+                    loss.backward()
+            else:
+                logits, loss = model(bx, by)
+                loss = loss / grad_accum_steps
+                loss.backward()
+            loss_accum += loss.item()
+            
         if cfg.grad_clip > 0.0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
             
@@ -382,7 +391,7 @@ def main():
         
         if master_process and (step % 10 == 0 or step == 1):
             iter_time = time.time() - start_time
-            print(f"SFT Step {step}/{cfg.max_iters} | loss: {loss.item():.4f} | time: {iter_time:.2f}s")
+            print(f"SFT Step {step}/{cfg.max_iters} | loss: {loss_accum:.4f} | time: {iter_time:.2f}s")
             start_time = time.time()
             
     if master_process:
