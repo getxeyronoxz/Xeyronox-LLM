@@ -1,0 +1,19 @@
+{
+  "description": "10M Debug Model configuration. Intended for faster prototyping runs, model architecture changes, and debugging on a single local GPU.",
+  "rough_parameters": "~10.6M",
+  "vocab_size": 16384,
+  "block_size": 256,
+  "n_layer": 8,
+  "n_head": 8,
+  "n_embd": 256,
+  "dropout": 0.0,
+  "bias": true,
+  "batch_size": 32,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 6e-4,
+  "max_iters": 2000,
+  "eval_interval": 100,
+  "eval_iters": 40,
+  "weight_decay": 0.1,
+  "grad_clip": 1.0
+}

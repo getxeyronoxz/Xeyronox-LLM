@@ -1,0 +1,19 @@
+{
+  "description": "Low-memory CPU debug configuration. Intended for quick pipeline validation and debugging on local older/low-end laptops. Safe, small memory footprint.",
+  "rough_parameters": "~2.9M",
+  "vocab_size": 16384,
+  "block_size": 64,
+  "n_layer": 4,
+  "n_head": 4,
+  "n_embd": 128,
+  "dropout": 0.0,
+  "bias": true,
+  "batch_size": 4,
+  "gradient_accumulation_steps": 1,
+  "learning_rate": 1e-3,
+  "max_iters": 100,
+  "eval_interval": 20,
+  "eval_iters": 10,
+  "weight_decay": 0.1,
+  "grad_clip": 1.0
+}

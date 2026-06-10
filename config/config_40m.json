@@ -1,0 +1,19 @@
+{
+  "description": "40M Upper-bound Model configuration. Optimized for Kaggle Dual T4 DDP/distributed training, and complex reasoning task runs.",
+  "rough_parameters": "~36.9M",
+  "vocab_size": 16384,
+  "block_size": 256,
+  "n_layer": 9,
+  "n_head": 16,
+  "n_embd": 512,
+  "dropout": 0.1,
+  "bias": true,
+  "batch_size": 64,
+  "gradient_accumulation_steps": 16,
+  "learning_rate": 4e-4,
+  "max_iters": 15000,
+  "eval_interval": 500,
+  "eval_iters": 100,
+  "weight_decay": 0.1,
+  "grad_clip": 1.0
+}

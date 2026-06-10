@@ -1,0 +1,21 @@
+# Checkpoints and models
+*.pt
+*.bin
+*.pth
+checkpoint.pt
+sft_checkpoint.pt
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# Local data and logs
+data/sample_text.txt
+data/constitutional_data.jsonl
+*.log
+scratch/
+.idea/
+.vscode/
