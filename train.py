@@ -270,7 +270,10 @@ def main():
     raw_model = model
     if ddp:
         from torch.nn.parallel import DistributedDataParallel as DDP
-        model = DDP(model, device_ids=[ddp_local_rank])
+        if 'cuda' in device:
+            model = DDP(model, device_ids=[ddp_local_rank])
+        else:
+            model = DDP(model)
         raw_model = model.module
         
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
