@@ -70,17 +70,32 @@ class HFStreamingStreamer:
     and yields input/target blocks of length block_size.
     """
     def __init__(self, dataset_name: str, split: str, encoding_name: str, block_size: int, text_column: str = "text"):
-        from datasets import load_dataset
+        from datasets import load_dataset, get_dataset_split_names
+        self.split = split
         try:
-            self.dataset = load_dataset(dataset_name, split=split, streaming=True)
+            available_splits = get_dataset_split_names(dataset_name)
+        except Exception:
+            available_splits = []
+        
+        self.has_val_split = any(s in ["validation", "val"] for s in available_splits)
+        
+        # Determine actual split to load
+        actual_split = split
+        if split in ["val", "validation"] and not self.has_val_split:
+            actual_split = "train"
+            
+        try:
+            self.dataset = load_dataset(dataset_name, split=actual_split, streaming=True)
         except Exception as e:
             if split in ["val", "validation"]:
                 alt_split = "validation" if split == "val" else "val"
                 try:
                     self.dataset = load_dataset(dataset_name, split=alt_split, streaming=True)
+                    self.has_val_split = True
                 except Exception:
                     try:
                         self.dataset = load_dataset(dataset_name, split="train", streaming=True)
+                        self.has_val_split = False
                     except Exception:
                         raise e
             else:
@@ -91,7 +106,19 @@ class HFStreamingStreamer:
 
     def __iter__(self) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
         token_buffer = []
+        record_idx = 0
         for sample in self.dataset:
+            # If dataset has no validation split, partition 'train' split 90/10 manually
+            if not self.has_val_split:
+                is_val_sample = (record_idx % 10 == 9)
+                record_idx += 1
+                if self.split in ["val", "validation"] and not is_val_sample:
+                    continue
+                if self.split == "train" and is_val_sample:
+                    continue
+            else:
+                record_idx += 1
+
             text = sample[self.text_column]
             tokens = self.tokenizer.encode(text, allowed_special="all")
             token_buffer.extend(tokens)
@@ -270,20 +297,34 @@ class ConstitutionalDataset(IterableDataset):
             self.tokenizer = tiktoken.get_encoding("gpt2")
             
         self.is_hf = not source.endswith(".jsonl") and not os.path.exists(source) and "/" in source
+        self.has_val_split = True
+        if self.is_hf:
+            from datasets import get_dataset_split_names
+            try:
+                available_splits = get_dataset_split_names(source)
+                self.has_val_split = any(s in ["validation", "val"] for s in available_splits)
+            except Exception:
+                self.has_val_split = True
 
     def __iter__(self) -> Generator[Tuple[np.ndarray, np.ndarray], None, None]:
         if self.is_hf:
             from datasets import load_dataset
+            actual_split = self.split
+            if self.split in ["val", "validation"] and not self.has_val_split:
+                actual_split = "train"
+                
             try:
-                dataset = load_dataset(self.source, split=self.split, streaming=True)
+                dataset = load_dataset(self.source, split=actual_split, streaming=True)
             except Exception as e:
                 if self.split in ["val", "validation"]:
                     alt_split = "validation" if self.split == "val" else "val"
                     try:
                         dataset = load_dataset(self.source, split=alt_split, streaming=True)
+                        self.has_val_split = True
                     except Exception:
                         try:
                             dataset = load_dataset(self.source, split="train", streaming=True)
+                            self.has_val_split = False
                         except Exception:
                             raise e
                 else:
@@ -328,7 +369,16 @@ class ConstitutionalDataset(IterableDataset):
         eos_token_id = self.tokenizer.eot_token
         worker_info = torch.utils.data.get_worker_info()
         
-        for record_idx, record in enumerate(records):
+        record_idx = -1
+        for raw_record_idx, record in enumerate(records):
+            if self.is_hf and not self.has_val_split:
+                is_val_sample = (raw_record_idx % 10 == 9)
+                if self.split in ["val", "validation"] and not is_val_sample:
+                    continue
+                if self.split == "train" and is_val_sample:
+                    continue
+                    
+            record_idx += 1
             if worker_info is not None:
                 if record_idx % worker_info.num_workers != worker_info.id:
                     continue
