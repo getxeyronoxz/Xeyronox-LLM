@@ -57,6 +57,7 @@ def get_args():
     parser.add_argument("--device", type=str, default=None, help="Device to run on (cpu, cuda, mps)")
     parser.add_argument("--dry-run", action="store_true", help="If True, only test the dataset pipeline throughput and exit")
     parser.add_argument("--num-workers", type=int, default=0, help="Number of workers for DataLoader")
+    parser.add_argument("--resume", action="store_true", help="If True, resume pretraining from checkpoint.pt if it exists")
     return parser.parse_args()
 
 class DDPDatasetWrapper(torch.utils.data.IterableDataset):
@@ -265,6 +266,29 @@ def main():
         
     from model import GPT
     model = GPT(cfg)
+    
+    start_step = 1
+    best_val_loss = 1e9
+    
+    # Load checkpoint if resuming
+    if args.resume and os.path.exists("checkpoint.pt"):
+        if master_process:
+            print("Resuming pretraining from checkpoint.pt...")
+        checkpoint = torch.load("checkpoint.pt", map_location=device, weights_only=False)
+        state_dict = checkpoint.get("model", checkpoint.get("model_state_dict", checkpoint))
+        
+        # Strip DDP prefixes if present
+        from collections import OrderedDict
+        clean_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:] if k.startswith("module.") else k
+            name = name[10:] if name.startswith("_orig_mod.") else name
+            clean_state_dict[name] = v
+        model.load_state_dict(clean_state_dict)
+        
+        start_step = checkpoint.get("iter", 1) + 1
+        best_val_loss = checkpoint.get("best_val_loss", 1e9)
+        
     model = model.to(device)
     
     raw_model = model
@@ -277,12 +301,18 @@ def main():
         raw_model = model.module
         
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.learning_rate, weight_decay=cfg.weight_decay)
-    
-    best_val_loss = 1e9
+    if args.resume and os.path.exists("checkpoint.pt"):
+        if "optimizer" in checkpoint and checkpoint["optimizer"]:
+            try:
+                optimizer.load_state_dict(checkpoint["optimizer"])
+            except Exception as e:
+                if master_process:
+                    print(f"Warning: Could not load optimizer state: {e}. Starting optimizer from scratch.")
+                    
     train_iter = iter(train_loader)
     
     start_time = time.time()
-    for step in range(1, cfg.max_iters + 1):
+    for step in range(start_step, cfg.max_iters + 1):
         # Periodic evaluation and checkpointing
         if step % cfg.eval_interval == 0 or step == 1:
             losses = {}
