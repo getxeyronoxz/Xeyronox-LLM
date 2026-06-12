@@ -55,6 +55,7 @@ def get_args():
                         choices=["final_only", "plan_answer", "draft_critique_revision", "principles_plan_final"],
                         help="Template mode for formatting SFT dataset")
     parser.add_argument("--batch-size", type=int, default=None, help="Override config batch size if specified")
+    parser.add_argument("--max-iters", type=int, default=None, help="Override config max_iters if specified")
     parser.add_argument("--device", type=str, default=None, help="Device to run on (cpu, cuda, mps)")
     parser.add_argument("--dry-run", action="store_true", help="If True, only test the SFT dataset pipeline and exit")
     parser.add_argument("--num-workers", type=int, default=0, help="Number of workers for DataLoader")
@@ -311,8 +312,9 @@ def main():
     best_val_loss = 1e9
     train_iter = iter(train_loader)
     
+    max_iters = args.max_iters if args.max_iters is not None else cfg.max_iters
     start_time = time.time()
-    for step in range(1, cfg.max_iters + 1):
+    for step in range(1, max_iters + 1):
         # Periodic evaluation and SFT checkpoint saving
         if step % cfg.eval_interval == 0 or step == 1:
             losses = {}
@@ -391,7 +393,7 @@ def main():
         
         if master_process and (step % 10 == 0 or step == 1):
             iter_time = time.time() - start_time
-            print(f"SFT Step {step}/{cfg.max_iters} | loss: {loss_accum:.4f} | time: {iter_time:.2f}s")
+            print(f"SFT Step {step}/{max_iters} | loss: {loss_accum:.4f} | time: {iter_time:.2f}s")
             start_time = time.time()
             
     if master_process:

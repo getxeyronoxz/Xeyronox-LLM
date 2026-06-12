@@ -54,6 +54,7 @@ def get_args():
     parser.add_argument("--is-hf", action="store_true", help="Whether data-path is a Hugging Face dataset name")
     parser.add_argument("--hf-split", type=str, default="train", help="Split name to use if streaming HF dataset")
     parser.add_argument("--batch-size", type=int, default=None, help="Override config batch size if specified")
+    parser.add_argument("--max-iters", type=int, default=None, help="Override config max_iters if specified")
     parser.add_argument("--device", type=str, default=None, help="Device to run on (cpu, cuda, mps)")
     parser.add_argument("--dry-run", action="store_true", help="If True, only test the dataset pipeline throughput and exit")
     parser.add_argument("--num-workers", type=int, default=0, help="Number of workers for DataLoader")
@@ -311,8 +312,9 @@ def main():
                     
     train_iter = iter(train_loader)
     
+    max_iters = args.max_iters if args.max_iters is not None else cfg.max_iters
     start_time = time.time()
-    for step in range(start_step, cfg.max_iters + 1):
+    for step in range(start_step, max_iters + 1):
         # Periodic evaluation and checkpointing
         if step % cfg.eval_interval == 0 or step == 1:
             losses = {}
@@ -391,7 +393,7 @@ def main():
         
         if master_process and (step % 10 == 0 or step == 1):
             iter_time = time.time() - start_time
-            print(f"Step {step}/{cfg.max_iters} | loss: {loss_accum:.4f} | time: {iter_time:.2f}s")
+            print(f"Step {step}/{max_iters} | loss: {loss_accum:.4f} | time: {iter_time:.2f}s")
             start_time = time.time()
             
     if master_process:
