@@ -11,7 +11,7 @@
   "batch_size": 64,
   "gradient_accumulation_steps": 16,
   "learning_rate": 4e-4,
-  "max_iters": 15000,
+  "max_iters": 10000,
   "eval_interval": 500,
   "eval_iters": 100,
   "weight_decay": 0.1,
